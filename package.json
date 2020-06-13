@@ -1,0 +1,31 @@
+{
+  "name": "jpflat",
+  "description": "",
+  "main": "index.js",
+  "version": "1.0.0",
+  "author": "Robert Kempton <r@snow87.com>",
+  "private": false,
+  "homepage": "https://github.com/narcolepticsnowman/redish",
+  "license": "MIT",
+  "files": [
+    "index.js",
+    "LICENSE.txt",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:narcolepticsnowman/redish.git"
+  },
+  "keywords": [
+    "flat",
+    "flatten",
+    "object",
+    "jsonpath",
+    "json",
+    "path",
+    "inflate"
+  ]
+}
