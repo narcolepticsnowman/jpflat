@@ -3,6 +3,16 @@ Flatten objects or arrays to an object with no nested objects where the keys are
 
 Inflate objects from a flattened object back to a regular nested object
 
+Any promises that are encountered will be resolved
+
+To prevent traversal into certain types (i.e. Dates), pass an array of valueSerializers to flatten or valueDeserializers to inflate.
+
+By default, Date objects are converted to the string: `DATE_${date.toISOString}`. The prefix is necessary for deserializing back to a date type. 
+
+Dots in property names will be escaped with a backslash. i.e. 127.0.0.1 => 127\.0\.0\.1
+
+### Basic Functionality
+
 For example, an object like this:
 ```js
 const foo = {
@@ -12,48 +22,49 @@ const foo = {
             foos: true
         },
         rayray: [ { nested: { rayray: [ true, false ] } } ],
-        stuff: -9
-
     },
-    moData: ["arrays",["and",["arrays"],["andArrays",[[{number:1}],[2],[3]]],["andArrays"]]]
+    nestedArrays: [[{date:new Date()}],[2],[3]]
 }
 ```
 
-Once sent through the flattener like
+Once sent through flatten
 ```js
 const {flatten} = require('jpflat')
-const flatFoo = flatten(foo)
+(async ()=>{
+    let flatFoo = await flatten(foo)
+})()
 ```
 
-It becomes an object like this:
+Becomes an object like this:
 ```js
 flatFoo = {
-  "name": "bob",
-  "datas.some.foos": true,
-  "datas.rayray[0].nested.rayray[0]": true,
-  "datas.rayray[0].nested.rayray[1]": false,
-  "datas.stuff": -9,
-  "moData[0]": "arrays",
-  "moData[1][0]": "and",
-  "moData[1][1][0]": "arrays",
-  "moData[1][2][0]": "andArrays",
-  "moData[1][2][1][0][0].number": 1,
-  "moData[1][2][1][1][0]": 2,
-  "moData[1][2][1][2][0]": 3,
-  "moData[1][3][0]": "andArrays"
-}
+            '$.name': 'bob',
+            '$.datas.some.foos': true,
+            '$.datas.rayray[0].nested.rayray[0]': true,
+            '$.datas.rayray[0].nested.rayray[1]': false,
+            '$.nestedArrays[1][0]': 2,
+            '$.nestedArrays[2][0]': 3,
+            '$.nestedArrays[0][0].date': 'DATE_2020-06-13T22:28:37.625Z'
+          }
 ```
 
 It can be converted back to it's original state like this:
 ```js
 const {inflate} = require('jpflat')
-const foo = inflate(flatFoo)
+(async ()=>{
+    const foo = await inflate(flatFoo)
+})()
 ```
 
 These functions work the same for an array as the root element
 
 ```js
-const array = [1,{two:2},[[[3]]]]
-const flatArray = flatten(array)
-const inflatedArray = inflate(flatArray)
+(async ()=>{
+    const array = [1,{two:2},[[[3]]]]
+    const flatArray = flatten(array)
+    const inflatedArray = inflate(flatArray)
+})()
 ```
+
+
+### Custom Serialization/Deserialization of values
