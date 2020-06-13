@@ -1,6 +1,6 @@
 {
   "name": "jpflat",
-  "description": "",
+  "description": "Flatten/Inflate Objects/Arrays to an object of depth 1 where the keys are json paths",
   "main": "index.js",
   "version": "1.0.0",
   "author": "Robert Kempton <r@snow87.com>",
