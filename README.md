@@ -1,5 +1,5 @@
 ## jpflat
-Flatten objects to a single level where the keys are json paths
+Flatten objects or arrays to an object with no nested objects where the keys are json paths
 
 Inflate objects from a flattened object back to a regular nested object
 
@@ -48,4 +48,12 @@ It can be converted back to it's original state like this:
 ```js
 const {inflate} = require('jpflat')
 const foo = inflate(flatFoo)
+```
+
+These functions work the same for an array as the root element
+
+```js
+const array = [1,{two:2},[[[3]]]]
+const flatArray = flatten(array)
+const inflatedArray = inflate(flatArray)
 ```
