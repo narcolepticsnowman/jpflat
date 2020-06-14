@@ -68,3 +68,40 @@ These functions work the same for an array as the root element
 
 
 ### Custom Serialization/Deserialization of values
+
+In some cases you may want to avoid traversing an object and instead convert the object or array to a value. 
+
+For instance, Dates being converted to iso strings.
+
+To use this feature, pass an array of serializers to the flatten method or an array of deserializers to the inflate method.
+
+A serializer must implement two methods, canSerialize and serialize
+
+```js
+
+const serializer = {
+    canSerialize: (o)=> o instanceof Date,
+    serialize: (date) => `DATE_${date.toISOString()}`
+}
+
+(async ()=>{
+    const inflatedArray = flatten(flat, [serializer])
+})()
+
+```
+
+A serializer must implement two methods, canDeserialize and deserialize
+
+```js
+
+const deserializer = {
+    canDeserialize: (s)=> s.startsWith('DATE_'),
+    deserialize: (date) => `DATE_${date.toISOString()}`
+}
+
+(async ()=>{
+    const inflatedArray = inflate(flat, [deserializer])
+})()
+
+```
+
