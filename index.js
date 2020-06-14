@@ -112,26 +112,26 @@ const parseArrayProp = ( parent, prop ) => {
 
 const isArrayProp = ( prop ) => prop.endsWith( ']' )
 
+const getOrCreate = ( parent, prop ) => {
+    if( prop === '$' )
+        return parent
+    else if( prop.endsWith( ']' ) ) {
+        const { targetArray, lastInd } = parseArrayProp( parent, prop )
+        if( !targetArray[ lastInd ] )
+            targetArray[ lastInd ] = {}
+        return targetArray[ lastInd ]
+    } else if( !parent[ prop ] ) {
+        parent[ prop ] = {}
+        return parent[ prop ]
+    } else {
+        return parent[ prop ]
+    }
+}
+
 const putPath = async( path, obj, val, valueDeserializers ) => {
     const parts = path.split( splitPath )
 
     const parentPaths = parts.slice( 0, parts.length - 1 ).map( unescapePropertyName )
-
-    const getOrCreate = ( parent, prop, i ) => {
-        if( prop === '$' )
-            return parent
-        else if( prop.endsWith( ']' ) ) {
-            const { targetArray, lastInd } = parseArrayProp( parent, prop )
-            if( !targetArray[ lastInd ] )
-                targetArray[ lastInd ] = {}
-            return targetArray[ lastInd ]
-        } else if( !parent[ prop ] ) {
-            parent[ prop ] = {}
-            return parent[ prop ]
-        } else {
-            return parent[ prop ]
-        }
-    }
 
     let resolvedVal = await val
     for( let deserializer of valueDeserializers ) {
