@@ -6,6 +6,9 @@ const dateDeserializer = {
     canDeserialize: ( o ) => typeof o === 'string' && o.startsWith( 'DATE_' ),
     deserialize: ( date ) => new Date( date.slice( 'DATE_'.length ) )
 }
+
+//TODO Add support for property minification. Store each property name in a map, and replace the property name with a 2 byte binary value which allows for 65,536 unique keys
+//TODO support custom path building and use for implementation of minification, that way we can do fixed length paths without dots and $
 module.exports = {
     /**
      * Flatten an object to a single level where the keys are json paths
@@ -51,6 +54,8 @@ const fillPathValuePairs = async( current, currPath, paths, valueSerializers ) =
     for( let serializer of valueSerializers ) {
         if( serializer && serializer.canSerialize && serializer.canSerialize( next ) ) {
             next = await serializer.serialize( next )
+            if(!serializer.continue)
+                break
         }
     }
     if( Array.isArray( next ) ) {
@@ -137,6 +142,8 @@ const putPath = async( path, obj, val, valueDeserializers ) => {
     for( let deserializer of valueDeserializers ) {
         if( deserializer.canDeserialize( resolvedVal ) ) {
             resolvedVal = await deserializer.deserialize( resolvedVal )
+            if(!deserializer.continue)
+                break
         }
     }
 

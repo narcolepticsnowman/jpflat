@@ -75,13 +75,14 @@ For instance, Dates being converted to iso strings.
 
 To use this feature, pass an array of serializers to the flatten method or an array of deserializers to the inflate method.
 
-A serializer must implement two methods, canSerialize and serialize
+A serializer must implement two methods, canSerialize and serialize. Async functions are supported.
 
 ```js
 
 const serializer = {
     canSerialize: (o)=> o instanceof Date,
-    serialize: (date) => `DATE_${date.toISOString()}`
+    serialize: (date) => `DATE_${date.toISOString()}`,
+    continue: true
 }
 
 (async ()=>{
@@ -90,13 +91,14 @@ const serializer = {
 
 ```
 
-A serializer must implement two methods, canDeserialize and deserialize
+Likewise, a deserializer must implement two methods, canDeserialize and deserialize
 
 ```js
 
 const deserializer = {
     canDeserialize: (s)=> s.startsWith('DATE_'),
-    deserialize: (date) => `DATE_${date.toISOString()}`
+    deserialize: (date) => `DATE_${date.toISOString()}`,
+    continue: false
 }
 
 (async ()=>{
@@ -104,4 +106,7 @@ const deserializer = {
 })()
 
 ```
+
+The continue property determines if this serializer should be the final serializer for the value, or if other serializers
+are allowed to serialize the produced value. This is useful for chaining serializations. 
 
