@@ -56,20 +56,13 @@ const fillPathValuePairs = async( current, pathParts, result, valueSerializers )
                 break
         }
     }
-    if( Array.isArray( next ) ) {
-        next.forEach( ( n, i ) =>
-                          fillPathValuePairs(
-                              n,
-                              pathParts.concat( { key: i, isInd: true } ),
-                              result,
-                              valueSerializers ) )
-    } else if( next && typeof next === 'object' ) {
+    if( next && typeof next === 'object' ) {
         Object.keys( next )
               .forEach(
                   k =>
                       fillPathValuePairs(
                           next[ k ],
-                          pathParts.concat( { key: k, isInd: false } ),
+                          pathParts.concat( { key: k, isInd: Array.isArray(next) && !isNaN(k) } ),
                           result,
                           valueSerializers
                       )

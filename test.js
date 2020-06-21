@@ -82,16 +82,20 @@ const run = async ()=> {
     console.log( "Test array root" )
     const array = [ 1, { two: 2 }, [ [ [ 3 ] ] ] ]
 
+    array.foo = 'bar'
+
     const flatArray = await flatten( array )
     console.log( flatArray )
 
     assert.strictEqual( flatArray[ '$[0]' ], array[ 0 ] )
+    assert.strictEqual( flatArray[ '$.foo' ], array.foo )
     assert.strictEqual( flatArray[ '$[1].two' ], array[ 1 ].two )
     assert.strictEqual( flatArray[ '$[2][0][0][0]' ], array[ 2 ][ 0 ][ 0 ][ 0 ] )
 
     const inflatedArray = await inflate( flatArray )
     console.log( inflatedArray )
 
+    assert.strictEqual( inflatedArray.foo, array.foo )
     assert.strictEqual( inflatedArray[ 0 ], array[ 0 ] )
     assert.strictEqual( inflatedArray[ 1 ].two, array[ 1 ].two )
     assert.strictEqual( inflatedArray[ 2 ][ 0 ][ 0 ][ 0 ], array[ 2 ][ 0 ][ 0 ][ 0 ] )
