@@ -156,6 +156,7 @@ module.exports = {
         if( typeof serializer.expand === 'function' ) throw Error( 'Path Serializer must provide an expand function!' )
         pathSerializer = serializer
     },
+    defaultPathSerializer: pathSerializer,
     /**
      * A date to string serializer
      */
