@@ -2,7 +2,7 @@
   "name": "jpflat",
   "description": "Flatten/Inflate Objects/Arrays to an object of depth 1 where the keys are json paths",
   "main": "index.js",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "author": "Robert Kempton <r@snow87.com>",
   "private": false,
   "homepage": "https://github.com/narcolepticsnowman/redish",

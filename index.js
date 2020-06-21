@@ -1,14 +1,96 @@
 const dateSerializer = {
-    canSerialize: ( o ) => o instanceof Date,
-    serialize: ( date ) => 'DATE_' + date.toISOString()
+    canSerialize: ( pathParts, o ) => o instanceof Date,
+    serialize: ( pathParts, date ) => 'DATE_' + date.toISOString()
 }
 const dateDeserializer = {
-    canDeserialize: ( o ) => typeof o === 'string' && o.startsWith( 'DATE_' ),
-    deserialize: ( date ) => new Date( date.slice( 'DATE_'.length ) )
+    canDeserialize: ( path, o ) => typeof o === 'string' && o.startsWith( 'DATE_' ),
+    deserialize: ( path, date ) => new Date( date.slice( 'DATE_'.length ) )
 }
 
-//TODO Add support for property minification. Store each property name in a map, and replace the property name with a 2 byte binary value which allows for 65,536 unique keys
-//TODO support custom path building and use for implementation of minification, that way we can do fixed length paths without dots and $
+const escapeCharacters = /(?<!\\)([.[\]])/g
+const escapePropertyName = ( key ) => key.replace( escapeCharacters, ( match, $1 ) => '\\' + $1 )
+
+let pathSerializer = {
+    reduce: ( parts, value, obj ) => parts.reduce( ( path, part ) => {
+        let k = typeof part.key === 'string' ? escapePropertyName( part.key ) : part.key
+        if( part.isInd ) {
+            return path + '[' + k + ']'
+        } else {
+            return path ? path + '.' + k : k
+        }
+    }, '' ),
+    expand: ( path, value, pathValuePairs ) => {
+        let parts = []
+        let part = []
+        let last = null
+
+        for( let c of path ) {
+            if( last !== '\\' && ( ( last !== ']' && ( c === '.' || c === '[' ) ) || c === ']' ) ) {
+                parts.push( {
+                                key: c === ']' ? parseInt( part.join( '' ) ) : part.join( '' ),
+                                isInd: c === ']'
+                            } )
+                part = []
+            } else if( last === '\\' || ( c !== '\\' && c !== '[' && c !== '.' && c !== ']' ) ) {
+                part.push( c )
+            }
+
+            last = c
+        }
+        if( part.length !== 0 ) {
+            parts.push( {
+                            key: last === ']' ? parseInt( part.join( '' ) ) : part.join( '' ),
+                            isInd: last === ']'
+                        } )
+        }
+        return parts
+    }
+}
+
+const fillPathValuePairs = async( current, pathParts, result, valueSerializers ) => {
+    let next = current instanceof Promise ? await current : current
+    for( let serializer of valueSerializers ) {
+        if( serializer && serializer.canSerialize && serializer.canSerialize( pathParts, next ) ) {
+            next = await serializer.serialize( pathParts, next )
+            if( !serializer.continue )
+                break
+        }
+    }
+    if( Array.isArray( next ) ) {
+        next.forEach( ( n, i ) =>
+                          fillPathValuePairs(
+                              n,
+                              pathParts.concat( { key: i, isInd: true } ),
+                              result,
+                              valueSerializers ) )
+    } else if( next && typeof next === 'object' ) {
+        Object.keys( next )
+              .forEach(
+                  k =>
+                      fillPathValuePairs(
+                          next[ k ],
+                          pathParts.concat( { key: k, isInd: false } ),
+                          result,
+                          valueSerializers
+                      )
+              )
+    } else {
+        result[ pathSerializer.reduce( pathParts ) ] = next
+    }
+}
+
+let deserialize = async function( val, valueDeserializers, path ) {
+    let resolvedVal = await val
+    for( let deserializer of valueDeserializers ) {
+        if( deserializer.canDeserialize( path, resolvedVal ) ) {
+            resolvedVal = await deserializer.deserialize( path, resolvedVal )
+            if( !deserializer.continue )
+                break
+        }
+    }
+    return resolvedVal
+}
+
 module.exports = {
     /**
      * Flatten an object to a single level where the keys are json paths
@@ -19,7 +101,7 @@ module.exports = {
      */
     async flatten( obj, valueSerializers = [ dateSerializer ] ) {
         const paths = {}
-        await fillPathValuePairs( obj, '$', paths, valueSerializers )
+        await fillPathValuePairs( obj, [ { key: '$', isInd: false } ], paths, valueSerializers )
         return paths
     },
 
@@ -31,12 +113,55 @@ module.exports = {
      *  See dateDeserializer for an example of a deserializer
      */
     async inflate( pathValuePairs, valueDeserializers = [ dateDeserializer ] ) {
-        let paths = Object.keys( pathValuePairs )
-
-        const newGuy = isArrayProp( paths[ 0 ].split( '.' )[ 0 ] ) ? [] : {}
-
-        await Promise.all( paths.map( k => putPath( k, newGuy, pathValuePairs[ k ], valueDeserializers ) ) )
-        return newGuy
+        let rootIsArray = false
+        return ( await Promise.all(
+            Object.keys( pathValuePairs )
+                  .map( async path => {
+                      let value = await deserialize( pathValuePairs[ path ], valueDeserializers, path )
+                      let parts = pathSerializer.expand( path, value, pathValuePairs )
+                      if( parts.length > 1 && parts[ 1 ].isInd ) rootIsArray = true
+                      return { value, parts }
+                  } )
+        ) ).reduce(
+            ( newGuy, { value, parts } ) => {
+                parts.reduce(
+                    ( current, prop, i ) => {
+                        if( i === parts.length - 1 )
+                            current[ prop.key ] = value
+                        else
+                            return prop.key === '$' ? current :
+                                   current[ prop.key ] || ( current[ prop.key ] = parts[ i + 1 ].isInd ? [] : {} )
+                    },
+                    newGuy
+                )
+                return newGuy
+            },
+            rootIsArray ? [] : {}
+        )
+    },
+    /**
+     * overwrite the default path reducer to customize the way paths are constructed.
+     *
+     * The path serializer is an object with two functions, reduce and expand.
+     * The reduce function receives three arguments, an array of objects representing parts of the path to the value, the value at the path, and the object being flattened.
+     * The property objects have the following shape:
+     *  {
+     *      key: 'foo', //The property name or index of the current part of the path,
+     *      isInd: false //whether the key represents an array index or object property
+     *  }
+     *
+     *  The expand function undoes the reduce function. It takes a string, a value, and the object being inflated, then returns an array of objects equivalent to the array
+     *  that was passed in to reduce.
+     *
+     *  The following rule must always hold (assume == is deep equals by value equality not reference equality)
+     *  let pathParts = [{key:'$',isInd: false},{key:'foo',isInd: false},{key:'0',isInd: true}]
+     *  pathParts == expand(reduce(pathParts))
+     */
+    setPathSerializer( serializer ) {
+        if( !serializer ) throw Error( 'Path Serializer cannot be falsey!' )
+        if( typeof serializer.reduce === 'function' ) throw Error( 'Path Serializer must provide a reduce function!' )
+        if( typeof serializer.expand === 'function' ) throw Error( 'Path Serializer must provide an expand function!' )
+        pathSerializer = serializer
     },
     /**
      * A date to string serializer
@@ -46,113 +171,4 @@ module.exports = {
      * A string to date deserializer
      */
     dateDeserializer
-}
-
-
-const fillPathValuePairs = async( current, currPath, paths, valueSerializers ) => {
-    let next = current instanceof Promise ? await current : current
-    for( let serializer of valueSerializers ) {
-        if( serializer && serializer.canSerialize && serializer.canSerialize( next ) ) {
-            next = await serializer.serialize( next )
-            if(!serializer.continue)
-                break
-        }
-    }
-    if( Array.isArray( next ) ) {
-        next.forEach( ( n, i ) =>
-                          fillPathValuePairs(
-                              n,
-                              `${currPath}[${i}]`,
-                              paths,
-                              valueSerializers ) )
-    } else if( next && typeof next === 'object' ) {
-        Object.keys( next )
-              .forEach(
-                  k =>
-                      fillPathValuePairs(
-                          next[ k ],
-                          currPath ? currPath + '.' + escapePropertyName(k) : escapePropertyName( k ),
-                          paths,
-                          valueSerializers
-                      )
-              )
-    } else {
-        paths[ currPath ] = next
-    }
-}
-
-let escapeCharacters = /(?<!\\)\./g
-let unescapeCharacters = /\\\./g
-let splitPath = /(?<!\\)\./g
-
-const escapePropertyName = ( key ) => key.replace( escapeCharacters, '\\.' )
-
-const unescapePropertyName = ( key ) => key.replace( unescapeCharacters, '.' )
-
-const targetArray = ( indices, first ) => {
-    if( indices.length > 1 )
-        return indices.slice( 0, -1 )
-                      .reduce(
-                          ( arr, ind ) => {
-                              if( !arr[ ind ] ) arr[ ind ] = []
-                              return arr[ ind ]
-                          },
-                          first
-                      )
-    else
-        return first
-}
-
-const parseArrayProp = ( parent, prop ) => {
-    let indMarker = prop.indexOf( '[' )
-    let indices = prop.slice( indMarker + 1, prop.length - 1 ).split( '][' )
-    let propName = unescapePropertyName( prop.slice( 0, indMarker ) )
-    if( propName !== '$' && !Array.isArray( parent[ propName ] ) )
-        parent[ propName ] = []
-    return {
-        targetArray: targetArray( indices, propName === '$' ? parent : parent[ propName ] ),
-        lastInd: indices[ indices.length - 1 ]
-    }
-}
-
-const isArrayProp = ( prop ) => prop.endsWith( ']' )
-
-const getOrCreate = ( parent, prop ) => {
-    if( prop === '$' )
-        return parent
-    else if( prop.endsWith( ']' ) ) {
-        const { targetArray, lastInd } = parseArrayProp( parent, prop )
-        if( !targetArray[ lastInd ] )
-            targetArray[ lastInd ] = {}
-        return targetArray[ lastInd ]
-    } else if( !parent[ prop ] ) {
-        parent[ prop ] = {}
-        return parent[ prop ]
-    } else {
-        return parent[ prop ]
-    }
-}
-
-const putPath = async( path, obj, val, valueDeserializers ) => {
-    const parts = path.split( splitPath )
-
-    const parentPaths = parts.slice( 0, parts.length - 1 ).map( unescapePropertyName )
-
-    let resolvedVal = await val
-    for( let deserializer of valueDeserializers ) {
-        if( deserializer.canDeserialize( resolvedVal ) ) {
-            resolvedVal = await deserializer.deserialize( resolvedVal )
-            if(!deserializer.continue)
-                break
-        }
-    }
-
-    let prop =unescapePropertyName( parts.slice( -1 )[ 0 ])
-    const parent = parentPaths.reduce( getOrCreate, obj ) || obj
-    if( isArrayProp( prop ) ) {
-        const { targetArray, lastInd } = parseArrayProp( parent, prop )
-        targetArray[ lastInd ] = resolvedVal
-    } else {
-        parent[ prop ] = resolvedVal
-    }
 }

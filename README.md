@@ -1,5 +1,5 @@
 ## jpflat
-Flatten objects or arrays to an object with no nested objects where the keys are json paths
+Flatten objects or arrays to an object with no nested objects where the keys are json paths by default 
 
 Inflate objects from a flattened object back to a regular nested object
 
@@ -7,9 +7,11 @@ Any promises that are encountered will be resolved
 
 To prevent traversal into certain types (i.e. Dates), pass an array of valueSerializers to flatten or valueDeserializers to inflate.
 
+Path generation can be customized to whatever scheme fits your needs.
+
 By default, Date objects are converted to the string: `DATE_${date.toISOString}`. The prefix is necessary for deserializing back to a date type. 
 
-Dots in property names will be escaped with a backslash. i.e. 127.0.0.1 => 127\.0\.0\.1
+Dots in property names will be escaped with a backslash. i.e. 127.0.0.1 => 127\\.0\\.0\\.1
 
 ### Basic Functionality
 
@@ -109,4 +111,43 @@ const deserializer = {
 
 The continue property determines if this serializer should be the final serializer for the value, or if other serializers
 are allowed to serialize the produced value. This is useful for chaining serializations. 
+
+### Custom Serialization/Deserialization of paths
+
+To specify a custom way to generate paths for each value, use setPathSerializer to set a new object.
+
+The path serializer has two functions, reduce and expand
+
+During flattening, the current path is represented as an array of objects, each with two properties: key and isInd
+
+```js
+{
+    key: 'foo',
+    isInd: false
+}
+```
+
+The key is the property name or index of the current part of the path, and isInd specifies whether the key represents an array index or object property.
+
+The first element in the array is always the root element represenation of 
+
+```js
+{
+    key: '$',
+    isInd: false
+}
+```
+
+The expand function undoes this operation, it takes a single flattened path and expands it back to the array of objects
+representing the path.
+
+The following rule must always hold (assume == is deep equals by value equality not reference equality)
+```js
+let pathParts = [
+    {key:'$', isInd: false},
+    {key:'foo', isInd: false},
+    {key:'0', isInd: true}
+]
+pathParts == expand( reduce( pathParts ) )
+```
 
