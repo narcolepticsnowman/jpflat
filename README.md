@@ -68,7 +68,6 @@ These functions work the same for an array as the root element
 })()
 ```
 
-
 ### Custom Serialization/Deserialization of values
 
 In some cases you may want to avoid traversing an object and instead convert the object or array to a value. 
@@ -114,9 +113,9 @@ are allowed to serialize the produced value. This is useful for chaining seriali
 
 ### Custom Serialization/Deserialization of paths
 
-To specify a custom way to generate paths for each value, use setPathSerializer to set a new object.
+To specify a custom way to generate paths for each value, pass a function as the third argument to flatten or inflate.
 
-The path serializer has two functions, reduce and expand
+These functions are called the pathReducer and pathExpander.
 
 During flattening, the current path is represented as an array of objects, each with two properties: key and isInd
 
@@ -138,7 +137,9 @@ The first element in the array is always the root element represenation of
 }
 ```
 
-The expand function undoes this operation, it takes a single flattened path and expands it back to the array of objects
+The pathReducer should take this array of property objects and convert them to a single path.
+
+The expand function undoes this operation, it takes a single path and expands it back to the array of objects
 representing the path.
 
 The following rule must always hold (assume == is deep equals by value equality not reference equality)
