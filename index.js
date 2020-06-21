@@ -55,7 +55,7 @@ const fillPathValuePairs = async( current, pathParts, result, valueSerializers, 
                 break
         }
     }
-    if( next && typeof next === 'object' ) {
+    if( next && typeof next === 'object' && Object.keys(next).length > 0) {
         Object.keys( next )
               .forEach(
                   k =>

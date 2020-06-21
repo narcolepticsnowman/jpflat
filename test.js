@@ -18,6 +18,8 @@ const run = async ()=> {
             stuff: -9
 
         },
+        emptyObj: {},
+        emptyArr: [],
         date: Promise.resolve(now),
         '127.0.0.1':'no place like home',
         'this.stuff': [[[{'is.deep':true}]]],
@@ -26,7 +28,9 @@ const run = async ()=> {
 
     const flat = await flatten( orig )
     console.log( flat )
-    assert.strictEqual( Object.keys( flat ).length, 24 )
+    assert.strictEqual( Object.keys( flat ).length, 26 )
+    assert.strictEqual( flat['$.emptyObj'], orig.emptyObj)
+    assert.strictEqual( flat['$.emptyArr'], orig.emptyArr)
     assert.strictEqual( flat[ '$.127\\.0\\.0\\.1' ], orig[ '127.0.0.1' ] )
     assert.strictEqual( flat[ '$.this\\.stuff[0][0][0].is\\.deep' ], orig[ 'this.stuff' ][ 0 ][ 0 ][ 0 ][ 'is.deep' ] )
     assert.strictEqual( flat[ '$.name' ], orig.name )
@@ -55,6 +59,8 @@ const run = async ()=> {
     const inflated = await inflate( flat )
     console.log( inflated )
     assert.strictEqual( inflated["127.0.0.1"], orig["127.0.0.1"])
+    assert.strictEqual( inflated.emptyObj, orig.emptyObj)
+    assert.strictEqual( inflated.emptyArr, orig.emptyArr)
     assert.strictEqual( inflated['this.stuff'][0][0][0]['is.deep'], orig['this.stuff'][0][0][0]['is.deep'])
     assert.strictEqual( inflated.name, orig.name )
     assert.strictEqual( inflated.date.getTime(), now.getTime() )
