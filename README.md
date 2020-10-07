@@ -78,11 +78,18 @@ To use this feature, pass an array of serializers to the flatten method or an ar
 
 A serializer must implement two methods, canSerialize and serialize. Async functions are supported.
 
+CanSerialize should return a boolean to determine if this value can be handled.
+serialize should return the serialized value.
+
+Serialize is called before traversing object keys so complex objects can be converted to simple values.
+
+The pathParts are provided for reference in cases where information is stored in the keys
+
 ```js
 
 const serializer = {
-    canSerialize: (o)=> o instanceof Date,
-    serialize: (date) => `DATE_${date.toISOString()}`,
+    canSerialize: (pathParts, o)=> o instanceof Date,
+    serialize: (pathParts, date) => `DATE_${date.toISOString()}`,
     continue: true
 }
 
@@ -92,13 +99,18 @@ const serializer = {
 
 ```
 
+the reference to pathParts is the actual working array for the recursive traversal, thus you can modify the path objects
+here along with the value before it's written to the result.
+
+If a path is modified, you will need to use a custom pathExpander to undo the modifications to ensure deserialization works.
+
 Likewise, a deserializer must implement two methods, canDeserialize and deserialize
 
 ```js
 
 const deserializer = {
-    canDeserialize: (s)=> s.startsWith('DATE_'),
-    deserialize: (date) => `DATE_${date.toISOString()}`,
+    canDeserialize: (path, s)=> s.startsWith('DATE_'),
+    deserialize: (path, date) => `DATE_${date.toISOString()}`,
     continue: false
 }
 

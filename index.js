@@ -10,7 +10,7 @@ const dateDeserializer = {
 const escapeCharacters = /(?<!\\)([.[\]])/g
 const escapePropertyName = ( key ) => key.replace( escapeCharacters, ( match, $1 ) => '\\' + $1 )
 
-const jsonPathPathReducer =  ( parts, value, obj ) => parts.reduce( ( path, part ) => {
+const jsonPathPathReducer = ( parts, value, obj ) => parts.reduce( ( path, part ) => {
     let k = typeof part.key === 'string' ? escapePropertyName( part.key ) : part.key
     if( part.isInd ) {
         return path + '[' + k + ']'
@@ -46,7 +46,7 @@ const jsonPathPathExpander = ( path, value, pathValuePairs ) => {
     return parts
 }
 
-const fillPathValuePairs = async( current, pathParts, result, valueSerializers, pathReducer ) => {
+const fillPathValuePairs = async( current, pathParts, result, valueSerializers, pathReducer, includeArrayLength ) => {
     let next = current instanceof Promise ? await current : current
     for( let serializer of valueSerializers ) {
         if( serializer && serializer.canSerialize && serializer.canSerialize( pathParts, next ) ) {
@@ -55,20 +55,22 @@ const fillPathValuePairs = async( current, pathParts, result, valueSerializers, 
                 break
         }
     }
-    if( next && typeof next === 'object' && Object.keys(next).length > 0) {
-        Object.keys( next )
-              .forEach(
-                  k =>
-                      fillPathValuePairs(
-                          next[ k ],
-                          pathParts.concat( { key: k, isInd: Array.isArray(next) && !isNaN(k) } ),
-                          result,
-                          valueSerializers,
-                          pathReducer
-                      )
-              )
+    if( next && typeof next === 'object' && Object.keys( next ).length > 0 ) {
+        let keys = Array.isArray( next ) && includeArrayLength ? [ ...Object.keys( next ), 'length' ] : Object.keys( next )
+        keys
+            .forEach(
+                k =>
+                    fillPathValuePairs(
+                        next[ k ],
+                        pathParts.concat( { key: k, isInd: Array.isArray( next ) && !isNaN( k ) } ),
+                        result,
+                        valueSerializers,
+                        pathReducer,
+                        includeArrayLength
+                    )
+            )
     } else {
-        result[ pathReducer( pathParts ) ] = next
+        result[ pathReducer( pathParts, next, result ) ] = next
     }
 }
 
@@ -76,14 +78,18 @@ module.exports = {
     /**
      * Flatten an object to a single level where the keys are json paths
      * @param obj The object to flatten
-     * @param valueSerializers Serializers to convert objects to a terminal value. For instance, Date => string.
+     * @param options The options to flatten
+     * @param options.valueSerializers Serializers to convert objects to a terminal value. For instance, Date => string.
      *  See dateSerializer for an example of a serializer
-     * @param pathReducer The path reducer to use
+     * @param options.pathReducer The path reducer to use
+     * @param options.includeArrayLength Whether to include array length in the properties for the array or not
      * @returns Object A new flatter, and possibly shinier, object
      */
-    async flatten( obj, valueSerializers = [ dateSerializer ], pathReducer = jsonPathPathReducer ) {
+    async flatten( obj, { valueSerializers, pathReducer, includeArrayLength } = {} ) {
+        if( !valueSerializers ) valueSerializers = [ dateSerializer ]
+        if( !pathReducer ) pathReducer = jsonPathPathReducer
         const paths = {}
-        await fillPathValuePairs( obj, [ { key: '$', isInd: false } ], paths, valueSerializers, pathReducer )
+        await fillPathValuePairs( obj, [ { key: '$', isInd: false } ], paths, valueSerializers, pathReducer, includeArrayLength )
         return paths
     },
 
@@ -95,12 +101,14 @@ module.exports = {
      *  See dateDeserializer for an example of a deserializer
      * @param pathExpander The path expander to use
      */
-    async inflate( pathValuePairs, valueDeserializers = [ dateDeserializer ], pathExpander = jsonPathPathExpander ) {
+    async inflate( pathValuePairs, { valueDeserializers, pathExpander } = {}) {
+        if( !valueDeserializers ) valueDeserializers = [ dateDeserializer ]
+        if( !pathExpander ) pathExpander = jsonPathPathExpander
         let rootIsArray = false
         return ( await Promise.all(
             Object.keys( pathValuePairs )
                   .map( async path => {
-                      let value = await  pathValuePairs[ path ]
+                      let value = await pathValuePairs[ path ]
                       for( let deserializer of valueDeserializers ) {
                           if( deserializer.canDeserialize( path, value ) ) {
                               value = await deserializer.deserialize( path, value )
